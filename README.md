@@ -15,7 +15,7 @@ Pools being tested:
 Types of tests:
 
 * io-bound tests will run the following on every job:
-```python3
+```python
 import requests
 
 def do_network_work(num: float):
@@ -25,7 +25,7 @@ def do_network_work(num: float):
         s.get('http://localhost:8080/')
 ```
 * cpu-bound tests will run the following on every job:
-```python3
+```python
 from cmath import sqrt
 
 def do_compute_work(num: float):
@@ -51,17 +51,21 @@ Note: pools.py is written for Python3 to make use of the built-in libraries of f
 ### CPU-bound tests
 
 [Small test](data_dumps/small_compute_bound.md)
+
 ![Small compute bound test](data_dumps/small_compute_bound.png)
 
 [Large test](data_dumps/large_compute_bound.md)
+
 ![Large compute bound test](data_dumps/large_compute_bound.png)
 
 ### IO-bound tests
 
 [Small test](data_dumps/small_network_bound.md)
+
 ![Small network bound test](data_dumps/small_network_bound.png)
 
 [Large test](data_dumps/large_network_bound.md)
+
 ![Large network bound test](data_dumps/large_network_bound.png)
 
 ## Conclusions

@@ -48,6 +48,8 @@ Note: pools.py is written for Python3 to make use of the built-in libraries of f
 
 ## Results
 
+Note: The negative memory values shown in the memory allocated graphs are not actually negative memory. Those graphs show memory block allocation changes over time. If the graph trends below 0 allocated blocks, then this means that pool implementation freed more memory than it allocated during that time via garbage collection.
+
 ### CPU-bound tests
 
 [Small test](data_dumps/small_compute_bound.md)

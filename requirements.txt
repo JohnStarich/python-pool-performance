@@ -1,0 +1,10 @@
+flask
+gunicorn
+gevent
+eventlet
+tabulate
+numpy
+matplotlib
+tqdm
+requests
+

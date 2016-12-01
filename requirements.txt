@@ -5,6 +5,6 @@ eventlet
 tabulate
 numpy
 matplotlib
+psutil
 tqdm
 requests
-

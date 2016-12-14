@@ -3,6 +3,19 @@ import time
 import os
 
 
+def lower_bound(sequence, bound=0):
+    """
+    Maps the given sequence such that the data points
+    are greater than or equal to the bound.
+    """
+    return map(
+        lambda point:
+            point if point > bound
+            else bound,
+        sequence
+    )
+
+
 def power_range(start, stop=None, step=2):
     """
     Generates a sequence starting at start and multiplying

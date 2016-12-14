@@ -48,9 +48,9 @@ def test_pool_func(
         # memory_percent.append(utils.memory_percent() - memory_percent_start)
         leaked_blocks.append(new_blocks - blocks)
     return {
-        "leaked blocks": leaked_blocks,
+        "leaked blocks": list(utils.lower_bound(leaked_blocks)),
         # "leaked memory": memory_percent,
-        "time": time_results,
+        "completion time": time_results,
         "jobs": job_count_column,
         # "parallel jobs": [concurrent_jobs] * len(time_results),
     }
@@ -221,7 +221,7 @@ if __name__ == '__main__':
     plt.title('Run time and memory usage vs number of jobs')
     # plt.subplot(nrows, ncols, plot_number)
     plt.subplot(2, 1, 1)
-    utils.plot_tuple_array(all_results, 'jobs', 'time')
+    utils.plot_tuple_array(all_results, 'jobs', 'completion time')
     plt.subplot(2, 1, 2)
     utils.plot_tuple_array(all_results, 'jobs', 'leaked blocks',
                            custom_y_label='memory allocated', y_mapping=cumsum)

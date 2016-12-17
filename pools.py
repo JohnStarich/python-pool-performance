@@ -1,119 +1,52 @@
 #!/usr/bin/env python3
 
 from __future__ import print_function
-from multiprocessing.pool import ThreadPool, Pool
-from multiprocessing import cpu_count
-from concurrent.futures import ThreadPoolExecutor
-from eventlet import GreenPool as EventletGreenPool
-from gevent.pool import Pool as GEventPool
+from collections.abc import Mapping, Sequence
+from collections import OrderedDict
 from types import FunctionType
 from tabulate import tabulate
-from typing import Sequence
-from numpy import cumsum
-from cmath import sqrt
 from tqdm import tqdm
 import textwrap
-import requests
-import sys
-import gc
+import numpy
 
 import utils
+from pools.eventlet import EventletPool
+from pools.gevent import GeventPool
+from pools.multiprocessing import MultiprocessingProcessPool, \
+                                  MultiprocessingThreadPool
+from pools.standard_library import StandardProcessPool, StandardThreadPool
 
 
-def test_pool_func(
-        pool_func: FunctionType,
-        work_func: FunctionType,
-        job_counts: Sequence[int],
-        processes: int=None,
-        threads: int=None):
-    time_results = []
-    leaked_blocks = []
-    # memory_percent = []
-    job_count_column = []
-    for jobs in job_counts:
-        job_count_column.append(jobs)
-        gc.collect()
-        # memory_percent_start = utils.memory_percent()
-        blocks = sys.getallocatedblocks()
-        time_results.append(
-            pool_func(
-                work_func=work_func,
-                jobs=jobs,
-                processes=processes,
-                threads=threads,
-            )
-        )
-        gc.collect()
-        new_blocks = sys.getallocatedblocks()
-        # memory_percent.append(utils.memory_percent() - memory_percent_start)
-        leaked_blocks.append(new_blocks - blocks)
+def run_test(work_type: FunctionType, job_sets: Sequence, trials: int,
+             pool_class: type, worker_count: int) -> Mapping:
+    pool = pool_class(worker_count)
+    if work_type == 'compute':
+        test_func = pool.run_compute_test
+    elif work_type == 'network':
+        test_func = pool.run_network_test
+    else:
+        raise Exception("Invalid work type: {}".format(work_type))
+    results = map(
+        lambda jobs: test_func(jobs, trials, show_progress=True),
+        tqdm(job_sets, desc=pool_class.__name__),
+    )
+    summarized_results = list(map(summarize_test, results))
+    pool.destroy_pool()
+    return summarized_results
+
+
+def summarize_test(test_output: Mapping) -> Mapping:
     return {
-        "leaked blocks": list(utils.lower_bound(leaked_blocks)),
-        # "leaked memory": memory_percent,
-        "completion time": time_results,
-        "jobs": job_count_column,
-        # "parallel jobs": [concurrent_jobs] * len(time_results),
+        'jobs': test_output['jobs'],
+        'time': numpy.mean(test_output['time']),
+        'blocks': numpy.mean(test_output['blocks']),
     }
-
-
-def do_network_work(num: float):
-    with requests.Session() as s:
-        adapter = requests.adapters.HTTPAdapter(max_retries=3)
-        s.mount('http://', adapter)
-        s.get('http://localhost:8080/')
-
-
-def do_compute_work(num: float):
-    return sqrt(sqrt(sqrt(num)))
-
-
-@utils.time_it
-def do_map(map_func: FunctionType, work_func: FunctionType, jobs: int):
-    list(map_func(work_func, range(int(jobs))))
-
-
-def multiprocessing_process_pool(work_func: FunctionType, jobs: Sequence[int],
-                                 processes: int=None, *args, **kwargs):
-    pool = Pool(processes)
-    time_result = do_map(pool.map, work_func, jobs)
-    pool.close()
-    return time_result
-
-
-def multiprocessing_thread_pool(work_func: FunctionType, jobs: Sequence[int],
-                                threads: int=None, *args, **kwargs):
-    """Performs jobs^2 work using multiprocessing.pool.ThreadPool"""
-    pool = ThreadPool(threads)
-    time_result = do_map(pool.map, work_func, jobs)
-    pool.close()
-    return time_result
-
-
-def eventlet_green_pool(work_func: FunctionType, jobs: Sequence[int],
-                        threads: int=None, *args, **kwargs):
-    pool = EventletGreenPool(threads)
-    time_result = do_map(pool.imap, work_func, jobs)
-    pool.resize(0)
-    return time_result
-
-
-def gevent_green_pool(work_func: FunctionType, jobs: Sequence[int],
-                      threads: int=None, *args, **kwargs):
-    pool = GEventPool(threads)
-    time_result = do_map(pool.map, work_func, jobs)
-    pool.kill()
-    return time_result
-
-
-def thread_pool_executor(work_func: FunctionType, jobs: Sequence[int],
-                         threads: int=None, *args, **kwargs):
-    """Performs jobs^2 work using concurrent.futures.ThreadPoolExecutor"""
-    pool = ThreadPoolExecutor(threads)
-    return do_map(pool.map, work_func, jobs)
 
 
 if __name__ == '__main__':
     import multiprocessing
+    # Set up Multiprocessing start method
+    # Some start methods depend on a clean process to fork from
     multiprocessing.set_start_method('spawn')
     import argparse
 
@@ -127,6 +60,9 @@ if __name__ == '__main__':
                         help='The power of 2 for number of jobs to execute. '
                              'For example, a choice of 4 will yield a maximum '
                              'of 2^4 jobs to run.')
+    parser.add_argument('--trials', '-r', type=int, default=1,
+                        help='The total number of times to run a test with '
+                             'the same parameters')
     parser.add_argument('--samples', '-s', type=int, default=10,
                         help='The total number of samples to compute. '
                              'For example, 4 samples with max-work of 4 will '
@@ -146,83 +82,80 @@ if __name__ == '__main__':
 
     if args.samples < 1:
         parser.error("Samples must be a positive integer")
+    if args.trials < 1:
+        parser.error("Trials must be a positive integer")
 
-    if args.work_type == 'compute':
-        work_func = do_compute_work
-    else:
-        work_func = do_network_work
-
-    pool_funcs = [
-        eventlet_green_pool,
-        gevent_green_pool,
-        multiprocessing_process_pool,
-        multiprocessing_thread_pool,
-        thread_pool_executor,
+    pool_types = [
+        (EventletPool, args.concurrent_threads),
+        (GeventPool, args.concurrent_threads),
+        (MultiprocessingProcessPool, args.concurrent_processes),
+        (MultiprocessingThreadPool, args.concurrent_threads),
+        (StandardProcessPool, args.concurrent_processes),
+        (StandardThreadPool, args.concurrent_threads),
     ]
 
     max_jobs = 2 ** args.max_work
+    trials = args.trials
     samples = args.samples
     job_step = int(max_jobs / samples)
     if job_step == 0:
         job_step = 1
-    jobs = range(0, max_jobs + 1, job_step)
-    concurrent_threads = args.concurrent_threads
-    concurrent_processes = args.concurrent_processes
+    job_sets = range(0, max_jobs + 1, job_step)
 
     print(textwrap.dedent(
         """\
         Pool performance analysis configuration:
 
-        maximum work:         2^{work} = {jobs} jobs
+        maximum work:         2^{max_work} = {jobs} jobs
         concurrent processes: {concurrent_processes}
         concurrent threads:   {concurrent_threads}
         number of samples:    {samples}
-        """.format(
-            work=args.max_work,
-            jobs=max_jobs,
-            concurrent_threads=concurrent_threads,
-            concurrent_processes=concurrent_processes,
-            samples=samples,
-        )
+        trials:               {trials}
+        """.format(jobs=max_jobs, **vars(args))
     ))
 
     all_results = list(tqdm(
         map(
-            lambda pool_func: (
-                pool_func.__name__,
-                test_pool_func(
-                    pool_func,
-                    work_func,
-                    tqdm(jobs, desc=pool_func.__name__),
-                    processes=concurrent_processes,
-                    threads=concurrent_threads,
-                )
+            lambda pool_class_tuple: run_test(
+                args.work_type,
+                job_sets,
+                trials,
+                *pool_class_tuple
             ),
-            pool_funcs
+            pool_types
         ),
         desc='Pool Analysis',
-        total=len(pool_funcs),
+        total=len(pool_types),
     ))
 
     print("\n\n")
 
-    all_results_dict = dict(all_results)
-    sorted_results = sorted(all_results_dict.keys())
-    for name in sorted_results:
-        table = tabulate(all_results_dict.get(name), headers='keys',
+    all_results_dict = zip(
+        map(lambda cls_tuple: cls_tuple[0].__name__, pool_types),
+        all_results
+    )
+    # Sort iteration order of mapping
+    all_results_dict = OrderedDict(sorted(all_results_dict))
+    for class_name, result in all_results_dict.items():
+        table = tabulate(result, headers='keys',
                          tablefmt='pipe')
-        print("{}:\n{}\n\n".format(name, table))
+        print("{}:\n{}\n\n".format(class_name, table))
 
     if args.no_graph is True:
         exit(0)
 
     from matplotlib import pyplot as plt
 
-    plt.title('Run time and memory usage vs number of jobs')
-    # plt.subplot(nrows, ncols, plot_number)
     plt.subplot(2, 1, 1)
-    utils.plot_tuple_array(all_results, 'jobs', 'completion time')
+    utils.plot_tuple_array(all_results_dict, 'jobs', 'time',
+                           custom_y_label='completion time (s)')
+    plt.title("run time vs job count")
+
     plt.subplot(2, 1, 2)
-    utils.plot_tuple_array(all_results, 'jobs', 'leaked blocks',
-                           custom_y_label='memory allocated', y_mapping=cumsum)
+    utils.plot_tuple_array(all_results_dict, 'jobs', 'blocks',
+                           custom_y_label='memory allocated (blocks)',
+                           y_mapping=utils.lower_bound_immediate)
+    plt.title("memory allocated vs job count")
+
+    plt.tight_layout()
     plt.show()

@@ -16,4 +16,3 @@ class MultiprocessingThreadPool(PoolTest):
 
     def map(self, work_func, inputs):
         return self.pool.imap_unordered(work_func, inputs)
-

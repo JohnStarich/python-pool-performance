@@ -5,6 +5,7 @@ eventlet
 tabulate
 numpy
 matplotlib
+memory_profiler
 psutil
 tqdm
 requests

@@ -10,5 +10,4 @@ class EventletPool(PoolTest):
         return self.pool.imap(work_func, inputs)
 
     def init_network_resource(self):
-        return eventlet.import_patched('requests')
-
+        return eventlet.import_patched('requests').Session

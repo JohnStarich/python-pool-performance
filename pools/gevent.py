@@ -1,4 +1,5 @@
 from pools import PoolTest
+from imp import reload
 import socket
 from gevent import monkey
 from gevent.pool import Pool
@@ -14,4 +15,3 @@ class GeventPool(PoolTest):
 
     def map(self, work_func, inputs):
         return self.pool.imap_unordered(work_func, inputs)
-

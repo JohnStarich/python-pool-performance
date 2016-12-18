@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 
-from __future__ import print_function
 from collections.abc import Mapping, Sequence
 from collections import OrderedDict
 from types import FunctionType
+import logging
 from tabulate import tabulate
 from tqdm import tqdm
 import textwrap
 import psutil
 import numpy
 import sys
+from os.path import basename
 
 import utils
 from pools.eventlet import EventletPool
@@ -89,6 +90,9 @@ if __name__ == '__main__':
                              'saved to the provided file name. Be sure to '
                              'include a supported matplotlib file extension '
                              'like .png or .pdf')
+    parser.add_argument('--save', help='If set, then the text output and '
+                        'graph are saved in markdown and png formats, '
+                        'respectively. Overrides --graph-save.')
     args = parser.parse_args()
 
     if args.samples < 1:
@@ -99,6 +103,19 @@ if __name__ == '__main__':
         parser.error("Graph height must be a positive integer")
     if args.graph_width < 1:
         parser.error("Graph width must be a positive integer")
+    if args.save is not None and basename(args.save) == '':
+        parser.error("Save file's name must not be empty")
+
+    logger = logging.getLogger('pools')
+    logger.setLevel(logging.DEBUG)
+    stdout_handler = logging.StreamHandler()
+    stdout_handler.setLevel(logging.DEBUG)
+    logger.addHandler(stdout_handler)
+    if args.save is not None:
+        # Send to data dump file as well as console
+        file_handler = logging.FileHandler(args.save + '.md', mode='w')
+        file_handler.setLevel(logging.INFO)
+        logger.addHandler(file_handler)
 
     pool_types = [
         (EventletPool, args.concurrent_threads),
@@ -117,7 +134,7 @@ if __name__ == '__main__':
         job_step = 1
     job_sets = range(0, max_jobs + 1, job_step)
 
-    print(textwrap.dedent(
+    logger.info(textwrap.dedent(
         """\
         ## Command input
 
@@ -144,7 +161,7 @@ if __name__ == '__main__':
             jobs=max_jobs,
             **vars(args)
         )
-    ), flush=True)
+    ))
 
     all_results = list(tqdm(
         map(
@@ -160,19 +177,19 @@ if __name__ == '__main__':
         total=len(pool_types),
     ))
 
-    print("\n\n")
-
     all_results_dict = zip(
         map(lambda cls_tuple: cls_tuple[0].__name__, pool_types),
         all_results
     )
     # Sort iteration order of mapping
     all_results_dict = OrderedDict(sorted(all_results_dict))
-    print("## Results\n")
+    logger.info("## Results\n")
+    if args.save is not None:
+        logger.info('![{name}]({name}.png)\n'.format(name=basename(args.save)))
     for class_name, result in all_results_dict.items():
         table = tabulate(result, headers='keys',
                          tablefmt='pipe')
-        print("### {}\n\n{}\n\n".format(class_name, table))
+        logger.info("### {}\n\n{}\n\n".format(class_name, table))
 
     if args.no_graph is True:
         exit(0)
@@ -212,6 +229,9 @@ if __name__ == '__main__':
         fontsize='medium',
     )
 
-    if args.graph_save is not None:
+    if args.save is not None:
+        plt.savefig(args.save + '.png')
+    elif args.graph_save is not None:
         plt.savefig(args.graph_save)
-    plt.show()
+    else:
+        plt.show()

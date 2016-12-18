@@ -138,7 +138,9 @@ if __name__ == '__main__':
         """\
         ## Command input
 
-        `{argv}`
+        ```
+        {argv}
+        ```
 
         ## Machine configuration
 
@@ -152,8 +154,8 @@ if __name__ == '__main__':
         * Concurrent threads:   {concurrent_threads}
         * Number of samples:    {samples}
         * Trials:               {trials}
-        """.format(
-            argv=' '.join(sys.argv),
+        """).format(
+            argv=' \\\n    '.join(sys.argv),
             cpu_count=psutil.cpu_count(),
             memory_size=utils.bytes_for_humans(
                 psutil.virtual_memory().available
@@ -161,7 +163,7 @@ if __name__ == '__main__':
             jobs=max_jobs,
             **vars(args)
         )
-    ))
+    )
 
     all_results = list(tqdm(
         map(

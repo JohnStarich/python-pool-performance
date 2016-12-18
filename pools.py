@@ -180,17 +180,38 @@ if __name__ == '__main__':
     from matplotlib import pyplot as plt
 
     plt.figure(figsize=(args.graph_width, args.graph_height))
-    plt.subplots_adjust(hspace=0.4)
+    plt.subplots_adjust(left=0.1, hspace=0.4)
     time_axes = plt.subplot(2, 1, 1)
-    utils.plot_tuple_array(time_axes, all_results_dict, 'jobs', 'time',
-                           custom_y_label='completion time (s)')
+    time_lines = utils.plot_tuple_array(
+        time_axes, all_results_dict, 'jobs', 'time',
+        custom_y_label='completion time (s)',
+    )
     plt.title("run time vs job count")
 
     memory_axes = plt.subplot(2, 1, 2)
-    utils.plot_tuple_array(memory_axes, all_results_dict, 'jobs', 'blocks',
-                           custom_y_label='memory allocated (blocks)',
-                           y_mapping=utils.lower_bound)
+    memory_lines = utils.plot_tuple_array(
+        memory_axes, all_results_dict, 'jobs', 'blocks',
+        custom_y_label='memory allocated (blocks)',
+        y_mapping=utils.lower_bound,
+    )
     plt.title("memory allocated vs job count")
+
+    # Scale graphs down and put legend on right
+    horizontal_scaling = 0.7
+    pos = time_axes.get_position()
+    time_axes.set_position([pos.x0, pos.y0,
+                           pos.width * horizontal_scaling, pos.height])
+    pos = memory_axes.get_position()
+    memory_axes.set_position([pos.x0, pos.y0,
+                             pos.width * horizontal_scaling, pos.height])
+    plt.figlegend(
+        time_lines,
+        labels=all_results_dict.keys(),
+        loc='center left',
+        bbox_to_anchor=(horizontal_scaling - 0.005, 0.5),
+        fontsize='medium',
+    )
+
     if args.graph_save is not None:
         plt.savefig(args.graph_save)
     plt.show()

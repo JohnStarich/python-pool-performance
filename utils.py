@@ -98,15 +98,10 @@ def plot_tuple_array(axes, name_to_data_mapping, x_label, y_label,
 
     plots = list(map(
         lambda result_tuple: plot_inner_arr(*result_tuple),
-        name_to_data_mapping.items()
+        sorted(name_to_data_mapping.items())
     ))
-
-    scale_axes(axes, xscale=0.7)
-    axes.legend(handles=plots, fontsize='small', loc='center left',
-                bbox_to_anchor=(1, 0.5))
     axes.set_xlabel(custom_x_label if custom_x_label is not None else x_label)
     axes.set_ylabel(custom_y_label if custom_y_label is not None else y_label)
-
     return plots
 
 

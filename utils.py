@@ -1,7 +1,26 @@
 from functools import reduce
+from math import frexp
 import psutil
 import time
 import os
+
+byte_names = 'KMGTPEZY'
+
+
+def bytes_for_humans(byte_count: int):
+    # Get power of two directly from floating point exponent bits (mantissa)
+    power_of_2 = frexp(byte_count)[1] - 1
+    binary_multiple = power_of_2 // 10
+    # If too big, represent in largest form
+    if binary_multiple >= len(byte_names):
+        binary_multiple = len(byte_names) - 1
+    # Gets the magnitude of the most significant multiple of 1024
+    impercise_magnitude = byte_count // (1 << (binary_multiple * 10))
+    # If less than 1024B, just return number of bytes
+    if binary_multiple == 0:
+        return str(impercise_magnitude) + ' B'
+    return str(impercise_magnitude) + ' ' \
+        + byte_names[binary_multiple - 1] + 'B'
 
 
 def lower_bound(sequence, bound=0):

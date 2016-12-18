@@ -7,7 +7,9 @@ from types import FunctionType
 from tabulate import tabulate
 from tqdm import tqdm
 import textwrap
+import psutil
 import numpy
+import sys
 
 import utils
 from pools.eventlet import EventletPool
@@ -80,8 +82,13 @@ if __name__ == '__main__':
                              'end of execution.')
     parser.add_argument('--graph-height', type=float, default=6,
                         help='Set the graph height (inches)')
-    parser.add_argument('--graph-width', type=float, default=8,
+    parser.add_argument('--graph-width', type=float, default=10,
                         help='Set the graph width (inches)')
+    parser.add_argument('--graph-save',
+                        help='If set, the graph that is created will be '
+                             'saved to the provided file name. Be sure to '
+                             'include a supported matplotlib file extension '
+                             'like .png or .pdf')
     args = parser.parse_args()
 
     if args.samples < 1:
@@ -112,15 +119,32 @@ if __name__ == '__main__':
 
     print(textwrap.dedent(
         """\
-        Pool performance analysis configuration:
+        ## Command input
 
-        maximum work:         2^{max_work} = {jobs} jobs
-        concurrent processes: {concurrent_processes}
-        concurrent threads:   {concurrent_threads}
-        number of samples:    {samples}
-        trials:               {trials}
-        """.format(jobs=max_jobs, **vars(args))
-    ))
+        `{argv}`
+
+        ## Machine configuration
+
+        * CPU count:            {cpu_count}
+        * Memory size:          {memory_size}
+
+        ## Test configuration:
+
+        * Maximum work:         2^{max_work} = {jobs} jobs
+        * Concurrent processes: {concurrent_processes}
+        * Concurrent threads:   {concurrent_threads}
+        * Number of samples:    {samples}
+        * Trials:               {trials}
+        """.format(
+            argv=' '.join(sys.argv),
+            cpu_count=psutil.cpu_count(),
+            memory_size=utils.bytes_for_humans(
+                psutil.virtual_memory().available
+            ),
+            jobs=max_jobs,
+            **vars(args)
+        )
+    ), flush=True)
 
     all_results = list(tqdm(
         map(
@@ -144,10 +168,11 @@ if __name__ == '__main__':
     )
     # Sort iteration order of mapping
     all_results_dict = OrderedDict(sorted(all_results_dict))
+    print("## Results\n")
     for class_name, result in all_results_dict.items():
         table = tabulate(result, headers='keys',
                          tablefmt='pipe')
-        print("{}:\n{}\n\n".format(class_name, table))
+        print("### {}\n\n{}\n\n".format(class_name, table))
 
     if args.no_graph is True:
         exit(0)
@@ -166,4 +191,6 @@ if __name__ == '__main__':
                            custom_y_label='memory allocated (blocks)',
                            y_mapping=utils.lower_bound)
     plt.title("memory allocated vs job count")
+    if args.graph_save is not None:
+        plt.savefig(args.graph_save)
     plt.show()

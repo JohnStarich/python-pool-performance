@@ -78,12 +78,20 @@ if __name__ == '__main__':
     parser.add_argument('--no-graph', action='store_true', default=False,
                         help='Disable showing the graph of the results at the '
                              'end of execution.')
+    parser.add_argument('--graph-height', type=float, default=6,
+                        help='Set the graph height (inches)')
+    parser.add_argument('--graph-width', type=float, default=8,
+                        help='Set the graph width (inches)')
     args = parser.parse_args()
 
     if args.samples < 1:
         parser.error("Samples must be a positive integer")
     if args.trials < 1:
         parser.error("Trials must be a positive integer")
+    if args.graph_height < 1:
+        parser.error("Graph height must be a positive integer")
+    if args.graph_width < 1:
+        parser.error("Graph width must be a positive integer")
 
     pool_types = [
         (EventletPool, args.concurrent_threads),
@@ -146,16 +154,16 @@ if __name__ == '__main__':
 
     from matplotlib import pyplot as plt
 
-    plt.subplot(2, 1, 1)
-    utils.plot_tuple_array(all_results_dict, 'jobs', 'time',
+    plt.figure(figsize=(args.graph_width, args.graph_height))
+    plt.subplots_adjust(hspace=0.4)
+    time_axes = plt.subplot(2, 1, 1)
+    utils.plot_tuple_array(time_axes, all_results_dict, 'jobs', 'time',
                            custom_y_label='completion time (s)')
     plt.title("run time vs job count")
 
-    plt.subplot(2, 1, 2)
-    utils.plot_tuple_array(all_results_dict, 'jobs', 'blocks',
+    memory_axes = plt.subplot(2, 1, 2)
+    utils.plot_tuple_array(memory_axes, all_results_dict, 'jobs', 'blocks',
                            custom_y_label='memory allocated (blocks)',
-                           y_mapping=utils.lower_bound_immediate)
+                           y_mapping=utils.lower_bound)
     plt.title("memory allocated vs job count")
-
-    plt.tight_layout()
     plt.show()

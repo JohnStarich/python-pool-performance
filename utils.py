@@ -1,3 +1,4 @@
+from functools import reduce
 import psutil
 import time
 import os
@@ -14,10 +15,6 @@ def lower_bound(sequence, bound=0):
             else bound,
         sequence
     )
-
-
-def lower_bound_immediate(sequence, bound=0):
-    return list(lower_bound(sequence, bound=bound))
 
 
 def power_range(start, stop=None, step=2):
@@ -63,32 +60,35 @@ def plot_dict(name_to_data_mapping, *args, **kwargs):
     return plot_tuple_array(name_to_data_mapping.items(), *args, **kwargs)
 
 
-def plot_tuple_array(name_to_data_mapping, x_label, y_label,
+def scale_axes(axes, xscale: float=1, yscale: float=1):
+    pos = axes.get_position()
+    axes.set_position([pos.x0, pos.y0, pos.width * xscale,
+                      pos.height * yscale])
+
+
+def plot_tuple_array(axes, name_to_data_mapping, x_label, y_label,
                      custom_x_label=None, custom_y_label=None, y_mapping=None):
     """Creates a plot of the given data in the order it is given."""
-    from matplotlib import pyplot as plt
 
     def plot_inner_arr(name, inverted_array):
         data = invert_array_of_dicts(inverted_array, inverted_array[0].keys())
         y_data = data[y_label]
         if y_mapping is not None:
-            y_data = y_mapping(y_data)
-        return plt.plot(data[x_label], y_data, label=name)[0]
+            y_data = list(y_mapping(y_data))
+        return axes.plot(data[x_label], y_data, label=name)[0]
 
     plots = list(map(
         lambda result_tuple: plot_inner_arr(*result_tuple),
         name_to_data_mapping.items()
     ))
-    plt.legend(handles=plots, fontsize='small', loc='best')
-    if custom_x_label is None:
-        plt.xlabel(x_label)
-    else:
-        plt.xlabel(custom_x_label)
-    if custom_y_label is None:
-        plt.ylabel(y_label)
-    else:
-        plt.ylabel(custom_y_label)
-    return plt
+
+    scale_axes(axes, xscale=0.7)
+    axes.legend(handles=plots, fontsize='small', loc='center left',
+                bbox_to_anchor=(1, 0.5))
+    axes.set_xlabel(custom_x_label if custom_x_label is not None else x_label)
+    axes.set_ylabel(custom_y_label if custom_y_label is not None else y_label)
+
+    return plots
 
 
 def memory_percent():
